@@ -19,26 +19,22 @@ fn tuple_to_float((a, (_, b)): (String, (char, String))) -> f64 {
 pub trait RiskParser<R> = Parser<char, R, Error = Simple<char>>;
 
 
-pub fn parser() ->  impl RiskParser<Expr> {
+pub fn parser() ->  impl RiskParser<Statment> {
     let literal = literal_parser_kind()
         .map_with_span(|x, span| Expr::Literal(Literal { lit: x, span: span.into() }));
-    
-    let keyword = choice((
-        text::keyword("let"),
-        text::keyword("in"),
-        text::keyword("if"),
-        text::keyword("then"),
-        text::keyword("else"),
-        text::keyword("match"),
-        text::keyword("with"),
-        ));
 
-    let ident = keyword
-        .not()
-        .then(
-            text::ident()
-        )
-        .map_with_span(|(_, id), span: Range<usize>| {
+    // let keyword = choice((
+    //     text::keyword("let"),
+    //     text::keyword("in"),
+    //     text::keyword("if"),
+    //     text::keyword("then"),
+    //     text::keyword("else"),
+    //     text::keyword("match"),
+    //     text::keyword("with"),
+    //     ));
+
+    let ident = text::ident()
+        .map_with_span(|id, span: Range<usize>| {
             Identifier { name: id, span: span.into() }
         });
 
@@ -156,6 +152,7 @@ pub fn parser() ->  impl RiskParser<Expr> {
         let expr_literal = literal;
 
         let expr_bind = ident
+            .clone()
             .then(
                 pattern.clone().repeated()
             )
@@ -269,48 +266,50 @@ pub fn parser() ->  impl RiskParser<Expr> {
         choice((expr_ident, expr_pc_id, expr_literal, expr_let, expr_annotation, expr_condition, expr_app, expr_match, expr_lambda))
     });
 
-    // let bind = ident
-    //     .then(
-    //         pattern.repeated()
-    //     )
-    //     .then_ignore(just('='))
-    //     .then(expr)
-    //     .map_with_span(|((id, pattern), expr), span: Range<usize>| {
-    //         Bind::new(id, pattern, expr, span.into())
-    //     });
+    let bind = ident
+        .clone()
+        .then(
+            pattern.repeated()
+        )
+        .then_ignore(just('='))
+        .then(expr)
+        .map_with_span(|((id, pattern), expr), span: Range<usize>| {
+            Bind::new(id, pattern, expr, span.into())
+        });
 
-    // let variant = pc_id
-    //     .then(
-    //         type_.clone().repeated()
-    //     )
-    //     .map_with_span(|(id, types), span: Range<usize>| {
-    //         Variant::new(id, types, span.into())
-    //     });
-    // 
-    // let type_decl = text::keyword("type")
-    //     .then(pc_id)
-    //     .then(ident.repeated())
-    //     .then_ignore(just('='))
-    //     .then(variant.
-    //             then_ignore(just('|'))
-    //             .repeated()
-    //     )
-    //     .map_with_span(|(((_, id), typevars), variants), s| {
-    //         TypeDecl::new(id, typevars, variants, s.into())
-    //     });
-    // 
-    // let type_assign = ident
-    //     .then_ignore(just("::"))
-    //     .then(type_)
-    //     .map_with_span(|(id, ty), s| {
-    //         TypeAssign::new(id, ty, s.into())
-    //     });
-    // 
-    // let stmt = choice((type_decl.map(Statment::TypeDecl), type_assign.map(Statment::TypeAssign), bind.map(Statment::Bind)));
+    let variant = pc_id
+        .then(
+            type_.clone().repeated()
+        )
+        .map_with_span(|(id, types), span: Range<usize>| {
+            Variant::new(id, types, span.into())
+        });
 
-    // let program = stmt.repeated().map(Program::new);
+    let type_decl = text::keyword("type")
+        .then(pc_id)
+        .then(ident.clone().repeated())
+        .then_ignore(just('='))
+        .then(variant.
+                then_ignore(just('|'))
+                .repeated()
+        )
+        .map_with_span(|(((_, id), typevars), variants), s| {
+            TypeDecl::new(id, typevars, variants, s.into())
+        });
 
-    expr
+    let type_assign = ident.clone()
+        .then_ignore(just("::"))
+        .then(type_)
+        .map_with_span(|(id, ty), s| {
+            TypeAssign::new(id, ty, s.into())
+        });
+
+    let stmt = choice((type_decl.map(Statment::TypeDecl), type_assign.map(Statment::TypeAssign), bind.map(Statment::Bind)));
+
+    // let program =
+    //     stmt.then_ignore(just(';')).repeated().map(Program::new);
+
+    stmt
 
 
 
